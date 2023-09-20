@@ -4,10 +4,43 @@ import (
 	"fmt"
 	"github.com/CheStix/todo-app"
 	"github.com/jmoiron/sqlx"
+	"strings"
 )
 
 type TodoListPostgres struct {
 	db *sqlx.DB
+}
+
+func (r *TodoListPostgres) Update(userId, listId int, input todo.UpdateListInput) error {
+	setValues := make([]string, 0)
+	args := make([]interface{}, 0)
+	ardId := 1
+
+	if input.Title != nil {
+		setValues = append(setValues, fmt.Sprintf("title=$%d", ardId))
+		args = append(args, *input.Title)
+		ardId++
+	}
+	if input.Description != nil {
+		setValues = append(setValues, fmt.Sprintf("description=$%d", ardId))
+		args = append(args, *input.Description)
+		ardId++
+	}
+
+	setQuery := strings.Join(setValues, ", ")
+	query := fmt.Sprintf("UPDATE %s tl SET %s FROM %s ul WHERE tl.id=ul.list_id AND ul.list_id=$%d and ul.user_id=$%d",
+		todolistsTable, setQuery, usersListsTable, ardId, ardId+1)
+	args = append(args, listId, userId)
+
+	_, err := r.db.Exec(query, args...)
+	return err
+}
+
+func (r *TodoListPostgres) Delete(userId, listId int) error {
+	query := fmt.Sprintf("DELETE FROM %s tl USING %s ul WHERE tl.id = ul.list_id AND ul.user_id=$1 AND ul.list_id=$2",
+		todolistsTable, usersListsTable)
+	_, err := r.db.Exec(query, userId, listId)
+	return err
 }
 
 func (r *TodoListPostgres) GetById(userId, listId int) (todo.TodoList, error) {
